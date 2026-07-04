@@ -11,24 +11,21 @@ Add a pet and see pet needs
 Input constraints for pet care
 Automatically produce a plan 
 
-My initial UML design uses one class, Plan, to ultimately generate and store a plan. It combines information from classes like PetInfo and OwnerInfo to generate tasks. 
+My design uses a Scheduler class to act as the "brain" that retrieves, organizes, and manages tasks across pets, pulling from an Owner that can manage multiple pets at once.
 
 Included classes:
-Pet info: 
-    Responsibilities:
-        High level class that stores all pet information, and pet care information in a CareNeed class. Manages changes to care needs.
-Owner info:
-    Responsibilities:
-        Stores all information relating to the owner (time available, priority, owner preferences)
-Plan:
-    Responsibilites:
-        Uses pet info and owner information to create and store a schedule consisting of multiple owned task classes 
 Task:
     Responsibilities:
-        Stores information relating to a task. Namely, 
-CareNeed:
+        Represents a single activity (description, time, frequency, completion status).
+Pet:
     Responsibilities:
-        Stores information about a need: what it is, frequency, priority, duration
+        Stores pet details and a list of tasks.
+Owner:
+    Responsibilities:
+        Manages multiple pets and provides access to all their tasks.
+Scheduler:
+    Responsibilities:
+        The "brain" that retrieves, organizes, and manages tasks across pets.
 
 
 **b. Design changes**
