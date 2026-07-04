@@ -6,6 +6,30 @@
 
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
+Three core actions a user should perform:
+Add a pet and see pet needs
+Input constraints for pet care
+Automatically produce a plan 
+
+My initial UML design uses one class, Plan, to ultimately generate and store a plan. It combines information from classes like PetInfo and OwnerInfo to generate tasks. 
+
+Included classes:
+Pet info: 
+    Responsibilities:
+        High level class that stores all pet information, and pet care information in a CareNeed class. Manages changes to care needs.
+Owner info:
+    Responsibilities:
+        Stores all information relating to the owner (time available, priority, owner preferences)
+Plan:
+    Responsibilites:
+        Uses pet info and owner information to create and store a schedule consisting of multiple owned task classes 
+Task:
+    Responsibilities:
+        Stores information relating to a task. Namely, 
+CareNeed:
+    Responsibilities:
+        Stores information about a need: what it is, frequency, priority, duration
+
 
 **b. Design changes**
 
@@ -39,7 +63,7 @@
 
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
-
+I asked AI to create a mermaid diagram using my high level description of my classes and it gave me an extra class called CareNeed. The logic behind the class made sense, however for some reason it was dependent on Task, so I pushed back on the suggestion and the AI reversed it's decision. I evaluated what the AI suggested by thinking through the intended flow of the program and double checking with the AI generated diagram.
 ---
 
 ## 4. Testing and Verification
