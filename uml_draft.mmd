@@ -1,0 +1,50 @@
+classDiagram
+    class PetInfo {
+        +str name
+        +str species
+        +int age
+        +str breed
+        +List~CareNeed~ care_needs
+        +add_care_need(care_need: CareNeed)
+        +remove_care_need(task_type: str)
+        +get_care_needs() List~CareNeed~
+    }
+
+    class CareNeed {
+        +str task_type
+        +int default_duration_minutes
+        +str default_priority
+        +str frequency
+    }
+
+    class OwnerInfo {
+        +str owner_name
+        +int available_minutes
+        +str preferred_start_time
+        +str priority_preference
+    }
+
+    class Task {
+        +str task_type
+        +int duration_minutes
+        +str priority
+        +str start_time
+        +str status
+        +end_time() str
+        +schedule(start_time: str)
+    }
+
+    class Plan {
+        +str date
+        +List~Task~ tasks
+        +int total_minutes_used
+        +generate(pet: PetInfo, owner: OwnerInfo)
+        +explain() str
+        +add_task(task: Task)
+        +get_schedule() List~Task~
+    }
+
+    PetInfo "1" *-- "0..*" CareNeed : has
+    Plan "1" *-- "0..*" Task : schedules
+    Plan --> PetInfo : uses
+    Plan --> OwnerInfo : uses
