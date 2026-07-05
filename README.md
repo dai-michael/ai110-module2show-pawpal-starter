@@ -58,28 +58,23 @@ Plan for 2026-07-03:
 
 ```bash
 # Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
+
+`tests/test_pawpal.py` covers the three scheduling behaviors most likely to break silently: that `get_schedule()` always returns tasks in chronological order (including unscheduled tasks), that completing a recurring task correctly rolls its date forward (one day for "daily", seven for "weekly") and spawns the next occurrence, and that `find_conflicts()` flags overlapping and duplicate-time tasks while correctly *not* flagging back-to-back tasks that just touch at the boundary.
 
 Sample test output:
 
 ```
-# Paste your pytest output here
-python3 -m pytest tests/pawpal.py -v 2>&1
-=================================================== test session starts ====================================================
-platform darwin -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0 -- /Users/weidai/codepath/ai110/ai110-module2show-pawpal-starter/.venv/bin/python3
-cachedir: .pytest_cache
+======================================================================= test session starts =======================================================================
+platform darwin -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0
 rootdir: /Users/weidai/codepath/ai110/ai110-module2show-pawpal-starter
 plugins: anyio-4.14.0
-collected 2 items                                                                                                          
+collected 12 items                                                                                                                                                
 
-tests/pawpal.py::test_mark_complete_changes_status PASSED                                                            [ 50%]
-tests/pawpal.py::test_adding_task_increases_pet_task_count PASSED                                                    [100%]
+tests/test_pawpal.py ............                                                                                                                           [100%]
 
-==================================================== 2 passed in 0.01s =====================================================
+======================================================================= 12 passed in 0.01s ========================================================================
 ```
 
 ## 📐 Smarter Scheduling
@@ -88,8 +83,8 @@ tests/pawpal.py::test_adding_task_increases_pet_task_count PASSED               
 |---------|-----------|-------|
 | Task sorting | `Scheduler.generate()` | Greedily packs tasks by priority tier (high → medium → low), back-to-back from the preferred start time. |
 | Filtering | `Scheduler.generate()`, `Owner.filter_tasks()` | Skips tasks that don't fit remaining time; `filter_tasks()` narrows by pet name and/or completion status. |
-| Conflict handling | `Scheduler.find_conflicts()`, `Scheduler._times_overlap()` | Flags overlapping scheduled times across all pets; surfaced as a warning in `explain()`, not an error. |
-| Recurring tasks | `Task.next_occurrence()`, `Task.mark_complete()` | Completing a "daily"/"weekly" task auto-spawns the next unscheduled occurrence. |
+| Conflict handling | `Scheduler.find_conflicts()`, `Scheduler._times_overlap()` | Flags overlapping scheduled times across all pets; surfaced as a warning in `explain()` |
+| Recurring tasks | `Task.next_occurrence()`, `Task.mark_complete()` | Completing a "daily"/"weekly" task autotomatically creates the next unscheduled occurrence. |
 
 ## 📸 Demo Walkthrough
 

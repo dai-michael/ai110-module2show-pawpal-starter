@@ -3,13 +3,16 @@ from typing import List, Optional, Tuple
 
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 TIME_FORMAT = "%H:%M"
+DATE_FORMAT = "%Y-%m-%d"
+RECURRENCE_INTERVALS = {"daily": timedelta(days=1), "weekly": timedelta(days=7)}
 
 
 class Task:
     RECURRING_FREQUENCIES = ("daily", "weekly")
 
     def __init__(self, description: str, duration_minutes: int, priority: str, frequency: str,
-                 scheduled_time: Optional[str] = None, completed: bool = False, pet_name: Optional[str] = None):
+                 scheduled_time: Optional[str] = None, completed: bool = False, pet_name: Optional[str] = None,
+                 date: Optional[str] = None):
         self.description = description
         self.duration_minutes = duration_minutes
         self.priority = priority
@@ -17,13 +20,17 @@ class Task:
         self.scheduled_time = scheduled_time
         self.completed = completed
         self.pet_name = pet_name
+        self.date = date
         self._pet: Optional["Pet"] = None
 
     def next_occurrence(self) -> Optional["Task"]:
         """Build the next instance of this task if its frequency recurs.
 
         Only "daily" and "weekly" tasks recur (see RECURRING_FREQUENCIES); anything
-        else (e.g. "monthly", one-off tasks) returns None.
+        else (e.g. "monthly", one-off tasks) returns None. If this task has a
+        date set, the new instance's date is advanced by the frequency's
+        interval (see RECURRENCE_INTERVALS) so a daily task lands on the next
+        calendar day and a weekly task lands seven days later.
 
         Returns:
             A new, unscheduled, incomplete Task cloned from this one, or None if
@@ -31,12 +38,20 @@ class Task:
         """
         if self.frequency not in self.RECURRING_FREQUENCIES:
             return None
+
+        next_date = None
+        if self.date is not None:
+            next_date = (datetime.strptime(self.date, DATE_FORMAT) + RECURRENCE_INTERVALS[self.frequency]).strftime(
+                DATE_FORMAT
+            )
+
         return Task(
             description=self.description,
             duration_minutes=self.duration_minutes,
             priority=self.priority,
             frequency=self.frequency,
             pet_name=self.pet_name,
+            date=next_date,
         )
 
     def mark_complete(self) -> Optional["Task"]:
