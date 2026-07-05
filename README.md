@@ -84,14 +84,12 @@ tests/pawpal.py::test_adding_task_increases_pet_task_count PASSED               
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
-
 | Feature | Method(s) | Notes |
 |---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Task sorting | `Scheduler.generate()` | Greedily packs tasks by priority tier (high → medium → low), back-to-back from the preferred start time. |
+| Filtering | `Scheduler.generate()`, `Owner.filter_tasks()` | Skips tasks that don't fit remaining time; `filter_tasks()` narrows by pet name and/or completion status. |
+| Conflict handling | `Scheduler.find_conflicts()`, `Scheduler._times_overlap()` | Flags overlapping scheduled times across all pets; surfaced as a warning in `explain()`, not an error. |
+| Recurring tasks | `Task.next_occurrence()`, `Task.mark_complete()` | Completing a "daily"/"weekly" task auto-spawns the next unscheduled occurrence. |
 
 ## 📸 Demo Walkthrough
 

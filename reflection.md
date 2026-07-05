@@ -32,6 +32,7 @@ Scheduler:
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+Design stayed the same during implementation.
 
 ---
 
@@ -46,6 +47,8 @@ Scheduler:
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+One tradeoff my scheduler makes is that it schedules tasks greedily by priority instead of solving for the combination of tasks that best fills the available time (like a knapsack approach would). My scheduler sorts all tasks by priority tier and packs them in that order until time runs out, so a single high-priority task has priority over several smaller lower-priority tasks.
+I think this is reasonable, as though cost is that leftover time between tasks isn't used as efficiently as it could be, it makes the tasks easier to explain and also the code and logic is easier for humans to read. 
 
 ---
 

@@ -1,11 +1,13 @@
 from datetime import datetime, timedelta
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 TIME_FORMAT = "%H:%M"
 
 
 class Task:
+    RECURRING_FREQUENCIES = ("daily", "weekly")
+
     def __init__(self, description: str, duration_minutes: int, priority: str, frequency: str,
                  scheduled_time: Optional[str] = None, completed: bool = False, pet_name: Optional[str] = None):
         self.description = description
@@ -15,10 +17,44 @@ class Task:
         self.scheduled_time = scheduled_time
         self.completed = completed
         self.pet_name = pet_name
+        self._pet: Optional["Pet"] = None
 
-    def mark_complete(self) -> None:
-        """Mark this task as completed."""
+    def next_occurrence(self) -> Optional["Task"]:
+        """Build the next instance of this task if its frequency recurs.
+
+        Only "daily" and "weekly" tasks recur (see RECURRING_FREQUENCIES); anything
+        else (e.g. "monthly", one-off tasks) returns None.
+
+        Returns:
+            A new, unscheduled, incomplete Task cloned from this one, or None if
+            this task's frequency does not recur.
+        """
+        if self.frequency not in self.RECURRING_FREQUENCIES:
+            return None
+        return Task(
+            description=self.description,
+            duration_minutes=self.duration_minutes,
+            priority=self.priority,
+            frequency=self.frequency,
+            pet_name=self.pet_name,
+        )
+
+    def mark_complete(self) -> Optional["Task"]:
+        """Mark this task as completed and roll it forward if it recurs.
+
+        If this task recurs (see next_occurrence), the new instance is
+        automatically appended to the owning pet's task list, so recurring
+        tasks keep reappearing on future schedules without manual re-entry.
+
+        Returns:
+            The newly spawned next-occurrence Task, or None if this task
+            doesn't recur or isn't attached to a Pet yet.
+        """
         self.completed = True
+        next_task = self.next_occurrence()
+        if next_task is not None and self._pet is not None:
+            self._pet.add_task(next_task)
+        return next_task
 
     def mark_incomplete(self) -> None:
         """Mark this task as not completed."""
@@ -48,6 +84,7 @@ class Pet:
     def add_task(self, task: Task) -> None:
         """Add a task to this pet's task list, tagging it with this pet's name."""
         task.pet_name = self.name
+        task._pet = self
         self.tasks.append(task)
 
     def remove_task(self, description: str) -> None:
@@ -86,16 +123,55 @@ class Owner:
             all_tasks.extend(pet.get_tasks())
         return all_tasks
 
+    def filter_tasks(self, pet_name: Optional[str] = None, completed: Optional[bool] = None) -> List[Task]:
+        """Return tasks across all pets, narrowed by pet name and/or completion status.
+
+        Filters are combined with AND and applied only when provided, so
+        omitting both args returns every task (same as get_all_tasks()).
+
+        Args:
+            pet_name: Only include tasks belonging to the pet with this name.
+            completed: Only include tasks whose completed status matches this value.
+
+        Returns:
+            The matching tasks, in the same relative order as get_all_tasks().
+        """
+        tasks = self.get_all_tasks()
+        if pet_name is not None:
+            tasks = [t for t in tasks if t.pet_name == pet_name]
+        if completed is not None:
+            tasks = [t for t in tasks if t.completed == completed]
+        return tasks
+
 
 class Scheduler:
     def __init__(self, date: str):
         self.date = date
         self.scheduled_tasks: List[Task] = []
         self.skipped_tasks: List[Task] = []
+        self.conflicts: List[Tuple[Task, Task]] = []
         self.total_minutes_used = 0
 
     def generate(self, owner: Owner) -> None:
-        """Greedily schedule the owner's tasks by priority within their available time."""
+        """Greedily schedule the owner's tasks by priority within their available time.
+
+        Tasks are sorted into priority tiers (high, medium, low) and packed
+        back-to-back starting at the owner's preferred start time. A task is
+        skipped rather than scheduled once it would push total scheduled
+        minutes past owner.available_minutes; scheduling then continues with
+        the remaining tasks, since a later, shorter task may still fit.
+
+        This is a greedy, priority-first strategy rather than an optimal
+        packing (e.g. knapsack): a single high-priority task is never
+        skipped in favor of several lower-priority tasks that would pack
+        more efficiently, even though that can waste leftover minutes.
+
+        Populates scheduled_tasks, skipped_tasks, total_minutes_used, and
+        conflicts (via find_conflicts) as a side effect.
+
+        Args:
+            owner: The owner whose pets' tasks should be scheduled.
+        """
         self.scheduled_tasks = []
         self.skipped_tasks = []
         self.total_minutes_used = 0
@@ -106,10 +182,9 @@ class Scheduler:
         )
 
         cursor = datetime.strptime(owner.preferred_start_time, TIME_FORMAT)
-        minutes_remaining = owner.available_minutes
 
         for task in tasks:
-            if task.duration_minutes > minutes_remaining:
+            if self.total_minutes_used + task.duration_minutes > owner.available_minutes:
                 self.skipped_tasks.append(task)
                 continue
 
@@ -118,7 +193,46 @@ class Scheduler:
             self.total_minutes_used += task.duration_minutes
 
             cursor += timedelta(minutes=task.duration_minutes)
-            minutes_remaining -= task.duration_minutes
+
+        self.conflicts = self.find_conflicts()
+
+    def find_conflicts(self) -> List[Tuple[Task, Task]]:
+        """Detect scheduled tasks whose time ranges overlap, regardless of which pet they belong to.
+
+        Checks every pair of scheduled tasks (O(n^2), fine at the scale of a
+        day's task list), since an owner can only be in one place at a time
+        no matter which pet a task is for. generate()'s own back-to-back
+        packing never produces overlaps on its own; this exists to catch
+        overlaps introduced by manually re-scheduling tasks (e.g. pinning a
+        fixed-time appointment).
+
+        Returns:
+            A list of (task_a, task_b) pairs whose time ranges overlap.
+        """
+        conflicts = []
+        tasks = [t for t in self.scheduled_tasks if t.scheduled_time is not None]
+        for i in range(len(tasks)):
+            for j in range(i + 1, len(tasks)):
+                if self._times_overlap(tasks[i], tasks[j]):
+                    conflicts.append((tasks[i], tasks[j]))
+        return conflicts
+
+    @staticmethod
+    def _times_overlap(a: Task, b: Task) -> bool:
+        """Check whether two scheduled tasks' time ranges intersect.
+
+        Treats each task's span as the half-open interval
+        [scheduled_time, end_time()), so a task ending exactly when another
+        starts does not count as overlapping.
+
+        Args:
+            a: First task; must have a scheduled_time set.
+            b: Second task; must have a scheduled_time set.
+
+        Returns:
+            True if a and b occupy any overlapping time.
+        """
+        return a.scheduled_time < b.end_time() and b.scheduled_time < a.end_time()
 
     def explain(self) -> str:
         """Return a human-readable summary of the scheduled and skipped tasks."""
@@ -136,6 +250,14 @@ class Scheduler:
             lines.append("Skipped (not enough time available):")
             for task in self.skipped_tasks:
                 lines.append(f"  - {task.pet_name}: {task.description} ({task.duration_minutes} min)")
+
+        if self.conflicts:
+            lines.append("Conflicts (overlapping times):")
+            for task_a, task_b in self.conflicts:
+                lines.append(
+                    f"  - {task_a.pet_name}: {task_a.description} ({task_a.scheduled_time}-{task_a.end_time()}) "
+                    f"overlaps {task_b.pet_name}: {task_b.description} ({task_b.scheduled_time}-{task_b.end_time()})"
+                )
 
         return "\n".join(lines)
 
