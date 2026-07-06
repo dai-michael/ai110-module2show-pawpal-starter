@@ -8,41 +8,9 @@ st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
 st.title("🐾 PawPal+")
 
-st.markdown(
-    """
-Welcome to the PawPal+ starter app.
-
-This file is intentionally thin. It gives you a working Streamlit app so you can start quickly,
-but **it does not implement the project logic**. Your job is to design the system and build it.
-
-Use this app as your interactive demo once your backend classes/functions exist.
-"""
-)
-
-with st.expander("Scenario", expanded=True):
-    st.markdown(
-        """
-**PawPal+** is a pet care planning assistant. It helps a pet owner plan care tasks
-for their pet(s) based on constraints like time, priority, and preferences.
-
-You will design and implement the scheduling logic and connect it to this Streamlit UI.
-"""
-    )
-
-with st.expander("What you need to build", expanded=True):
-    st.markdown(
-        """
-At minimum, your system should:
-- Represent pet care tasks (what needs to happen, how long it takes, priority)
-- Represent the pet and the owner (basic info and preferences)
-- Build a plan/schedule for a day that chooses and orders tasks based on constraints
-- Explain the plan (why each task was chosen and when it happens)
-"""
-    )
-
 st.divider()
 
-st.subheader("Quick Demo Inputs (UI only)")
+st.subheader("Owner")
 owner_name = st.text_input("Owner name", value="Jordan")
 available_minutes = st.number_input("Available minutes today", min_value=1, max_value=600, value=60)
 preferred_start_time = st.time_input("Preferred start time", value=time(8, 0))
@@ -93,36 +61,145 @@ else:
     )
     pet = owner.get_pets()[pet_index]
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         task_title = st.text_input("Task title", value="Morning walk")
     with col2:
         duration = st.number_input("Duration (minutes)", min_value=1, max_value=240, value=20)
     with col3:
         priority = st.selectbox("Priority", ["low", "medium", "high"], index=2)
+    with col4:
+        frequency = st.selectbox("Frequency", ["daily", "weekly", "one-time"], index=0)
 
     if st.button("Add task"):
         pet.add_task(
-            Task(description=task_title, duration_minutes=int(duration), priority=priority, frequency="daily")
+            Task(
+                description=task_title,
+                duration_minutes=int(duration),
+                priority=priority,
+                frequency=frequency,
+                date=str(date.today()),
+            )
         )
 
+    def render_task_rows(tasks):
+        header = st.columns([3, 2, 2, 2, 2, 1])
+        header[0].markdown("**Title**")
+        header[1].markdown("**Duration**")
+        header[2].markdown("**Priority**")
+        header[3].markdown("**Frequency**")
+        header[4].markdown("**Date**")
+        header[5].markdown("**Done**")
+        for t in tasks:
+            row = st.columns([3, 2, 2, 2, 2, 1])
+            row[0].write(t.description)
+            row[1].write(f"{t.duration_minutes} min")
+            row[2].write(t.priority)
+            row[3].write(t.frequency)
+            row[4].write(t.date or "—")
+            marked_done = row[5].checkbox(
+                "Done",
+                value=t.completed,
+                key=f"task_done_{id(t)}",
+                label_visibility="collapsed",
+            )
+            if marked_done and not t.completed:
+                t.mark_complete()
+                st.rerun()
+            elif not marked_done and t.completed:
+                t.mark_incomplete()
+                st.rerun()
+
     if pet.get_tasks():
-        st.write(f"Current tasks for {pet.name}:")
-        st.table(
-            [
-                {"title": t.description, "duration_minutes": t.duration_minutes, "priority": t.priority}
-                for t in pet.get_tasks()
-            ]
-        )
+        upcoming_tasks = [t for t in pet.get_tasks() if not t.completed]
+        completed_tasks = [t for t in pet.get_tasks() if t.completed]
+
+        st.write(f"**Upcoming for {pet.name}**")
+        if upcoming_tasks:
+            render_task_rows(upcoming_tasks)
+        else:
+            st.caption("Nothing upcoming.")
+
+        st.write(f"**Completed for {pet.name}**")
+        if completed_tasks:
+            render_task_rows(completed_tasks)
+        else:
+            st.caption("Nothing completed yet.")
+
+        st.caption("Checking a recurring (daily/weekly) task as done automatically adds its next occurrence.")
     else:
         st.info(f"No tasks yet for {pet.name}. Add one above.")
 
 st.divider()
 
 st.subheader("Build Schedule")
-st.caption("Generates today's schedule from the owner's pets and their tasks.")
+st.caption(
+    "Generates today's schedule from the owner's pets and their tasks, "
+    "using the Scheduler's priority-based algorithm."
+)
 
 if st.button("Generate schedule"):
     scheduler = Scheduler(date=str(date.today()))
     scheduler.generate(owner)
-    st.text(scheduler.explain())
+    st.session_state.scheduler = scheduler
+
+scheduler = st.session_state.get("scheduler")
+
+if scheduler is not None:
+    schedule = scheduler.get_schedule()
+
+    if schedule:
+        st.success(
+            f"✅ Scheduled {len(schedule)} task(s) using "
+            f"{scheduler.total_minutes_used} of {owner.available_minutes} available minutes."
+        )
+        st.table(
+            [
+                {
+                    "Time": f"{t.scheduled_time}–{t.end_time()}",
+                    "Pet": t.pet_name,
+                    "Task": t.description,
+                    "Duration (min)": t.duration_minutes,
+                    "Priority": t.priority,
+                }
+                for t in schedule
+            ]
+        )
+    else:
+        st.info("No tasks scheduled yet. Add pets and tasks above, then generate a schedule.")
+
+    if scheduler.skipped_tasks:
+        st.warning(
+            f"⏭️ {len(scheduler.skipped_tasks)} task(s) didn't fit in the available time and were skipped:"
+        )
+        st.table(
+            [
+                {
+                    "Pet": t.pet_name,
+                    "Task": t.description,
+                    "Duration (min)": t.duration_minutes,
+                    "Priority": t.priority,
+                }
+                for t in scheduler.skipped_tasks
+            ]
+        )
+
+    if scheduler.conflicts:
+        st.error(
+            f"🚨 {len(scheduler.conflicts)} scheduling conflict(s) detected — "
+            "these tasks overlap in time:"
+        )
+        for task_a, task_b in scheduler.conflicts:
+            st.markdown(
+                f"- **{task_a.pet_name}: {task_a.description}** "
+                f"({task_a.scheduled_time}–{task_a.end_time()}) overlaps with "
+                f"**{task_b.pet_name}: {task_b.description}** "
+                f"({task_b.scheduled_time}–{task_b.end_time()})"
+            )
+        st.caption(
+            "Tip: reschedule one of the overlapping tasks, ask another person to cover one, "
+            "or shorten a duration so they no longer collide."
+        )
+
+    with st.expander("Full text explanation"):
+        st.text(scheduler.explain())

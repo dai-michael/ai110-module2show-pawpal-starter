@@ -61,7 +61,7 @@ Plan for 2026-07-03:
 python -m pytest
 ```
 
-`tests/test_pawpal.py` covers the three scheduling behaviors most likely to break silently: that `get_schedule()` always returns tasks in chronological order (including unscheduled tasks), that completing a recurring task correctly rolls its date forward (one day for "daily", seven for "weekly") and spawns the next occurrence, and that `find_conflicts()` flags overlapping and duplicate-time tasks while correctly *not* flagging back-to-back tasks that just touch at the boundary.
+`tests/test_pawpal.py` covers the three scheduling behaviors most likely to break: sorting correctness of  `get_schedule()`, completing a recurring task creates the next task, and scheduler flags duplicate times with `find_conflicts()` 
 
 Sample test output:
 
@@ -70,12 +70,14 @@ Sample test output:
 platform darwin -- Python 3.14.2, pytest-9.1.1, pluggy-1.6.0
 rootdir: /Users/weidai/codepath/ai110/ai110-module2show-pawpal-starter
 plugins: anyio-4.14.0
-collected 12 items                                                                                                                                                
+collected 10 items                                                                                                                                                
 
 tests/test_pawpal.py ............                                                                                                                           [100%]
 
-======================================================================= 12 passed in 0.01s ========================================================================
+======================================================================= 10 passed in 0.01s ========================================================================
 ```
+
+4/5 star confidence reliability
 
 ## 📐 Smarter Scheduling
 
@@ -84,16 +86,72 @@ tests/test_pawpal.py ............                                               
 | Task sorting | `Scheduler.generate()` | Greedily packs tasks by priority tier (high → medium → low), back-to-back from the preferred start time. |
 | Filtering | `Scheduler.generate()`, `Owner.filter_tasks()` | Skips tasks that don't fit remaining time; `filter_tasks()` narrows by pet name and/or completion status. |
 | Conflict handling | `Scheduler.find_conflicts()`, `Scheduler._times_overlap()` | Flags overlapping scheduled times across all pets; surfaced as a warning in `explain()` |
-| Recurring tasks | `Task.next_occurrence()`, `Task.mark_complete()` | Completing a "daily"/"weekly" task autotomatically creates the next unscheduled occurrence. |
+| Recurring tasks | `Task.next_occurrence()`, `Task.mark_complete()` | Completing a "daily"/"weekly" task automatically creates the next unscheduled occurrence. |
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+The Streamlit UI (`app.py`) lets a user:
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+- Enter owner info (name, available minutes, preferred start time, priority preference)
+- Add one or more pets (name, species, age, breed)
+- Add tasks to a selected pet (title, duration, priority)
+- Generate a schedule and view scheduled tasks, skipped tasks, and time conflicts
+- Read a full text explanation of the plan
+
+**Example workflow:** add a pet ("Mochi") → add a task ("Morning walk", 30 min, high priority) → click **Generate schedule** → view today's schedule, sorted by start time.
+
+**Key scheduler behaviors shown in the UI:**
+
+1. **Sorting** — scheduled tasks are shown in time order regardless of the order they were entered in.
+2. **Priority-first packing** — high-priority tasks are scheduled before lower-priority ones when time is limited.
+3. **Skipped tasks** — tasks that don't fit in the owner's available minutes are listed separately with a warning.
+4. **Conflict warnings** — overlapping scheduled times across different pets are flagged in red with a suggested fix.
+
+Sample CLI output (`python main.py`), showing sorting, priority packing, filtering, and conflict detection:
+
+```
+Today's Schedule
+Plan for 2026-07-03:
+  08:00-08:10 — Mochi: Feeding (10 min) [priority: high]
+  08:10-08:40 — Mochi: Morning walk (30 min) [priority: high]
+  08:40-09:00 — Biscuit: Vet checkup (20 min) [priority: high]
+  09:00-09:10 — Mochi: Brushing (10 min) [priority: medium]
+  09:10-09:15 — Biscuit: Litter box cleaning (5 min) [priority: medium]
+
+Scheduled tasks sorted by time:
+  08:00 — Mochi: Feeding
+  08:10 — Mochi: Morning walk
+  08:40 — Biscuit: Vet checkup
+  09:00 — Mochi: Brushing
+  09:10 — Biscuit: Litter box cleaning
+
+Incomplete tasks (filtered):
+  Mochi: Feeding [high]
+  Mochi: Morning walk [high]
+  Mochi: Brushing [medium]
+  Biscuit: Vet checkup [high]
+  Biscuit: Litter box cleaning [medium]
+
+Completed tasks (filtered):
+  Mochi: Nail trim [low]
+
+Tasks for Mochi only (filtered):
+  Feeding [high]
+  Nail trim [low]
+  Morning walk [high]
+  Brushing [medium]
+
+Today's Schedule (with a scheduling conflict introduced)
+Plan for 2026-07-03:
+  08:00-08:10 — Mochi: Feeding (10 min) [priority: high]
+  08:10-08:40 — Mochi: Morning walk (30 min) [priority: high]
+  08:40-09:00 — Biscuit: Vet checkup (20 min) [priority: high]
+  09:00-09:10 — Mochi: Brushing (10 min) [priority: medium]
+  09:10-09:15 — Biscuit: Litter box cleaning (5 min) [priority: medium]
+  10:00-10:30 — Mochi: Grooming appointment (30 min) [priority: medium]
+  10:10-10:25 — Biscuit: Vet follow-up call (15 min) [priority: high]
+Conflicts (overlapping times):
+  - Mochi: Grooming appointment (10:00-10:30) overlaps Biscuit: Vet follow-up call (10:10-10:25)
+```
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->

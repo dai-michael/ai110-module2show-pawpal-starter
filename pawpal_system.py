@@ -170,11 +170,13 @@ class Scheduler:
     def generate(self, owner: Owner) -> None:
         """Greedily schedule the owner's tasks by priority within their available time.
 
-        Tasks are sorted into priority tiers (high, medium, low) and packed
-        back-to-back starting at the owner's preferred start time. A task is
-        skipped rather than scheduled once it would push total scheduled
-        minutes past owner.available_minutes; scheduling then continues with
-        the remaining tasks, since a later, shorter task may still fit.
+        Already-completed tasks and tasks not dated for self.date are
+        excluded up front; only outstanding tasks due today are sorted into
+        priority tiers (high, medium, low) and packed back-to-back starting
+        at the owner's preferred start time. A task is skipped rather than
+        scheduled once it would push total scheduled minutes past
+        owner.available_minutes; scheduling then continues with the
+        remaining tasks, since a later, shorter task may still fit.
 
         This is a greedy, priority-first strategy rather than an optimal
         packing (e.g. knapsack): a single high-priority task is never
@@ -192,7 +194,7 @@ class Scheduler:
         self.total_minutes_used = 0
 
         tasks = sorted(
-            owner.get_all_tasks(),
+            (t for t in owner.get_all_tasks() if not t.completed and t.date == self.date),
             key=lambda t: PRIORITY_ORDER.get(t.priority, len(PRIORITY_ORDER)),
         )
 
